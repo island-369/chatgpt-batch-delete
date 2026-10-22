@@ -1,0 +1,99 @@
+<!doctype html>
+<html class="dark">
+<head>
+<meta charset="utf-8">
+<title>ChatGPT 批量删除 · 本地测试环境</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{display:flex;background:#212121;color:#ececec;font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif}
+  #sidebar{width:260px;flex:none;background:#171717;border-right:1px solid rgba(255,255,255,.06);padding:12px 8px;overflow-y:auto}
+  #sidebar h2{font-size:12px;color:#9b9b9b;font-weight:600;margin:8px 8px 6px}
+  #history{list-style:none;margin:0;padding:0}
+  #history li a.__menu-item{display:flex;align-items:center;padding:8px 10px;border-radius:8px;color:#ececec;text-decoration:none;font-size:13.5px}
+  #history li a.__menu-item:hover{background:rgba(255,255,255,.06)}
+  #history li a.__menu-item .truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  main{flex:1;display:flex;align-items:center;justify-content:center;color:#565656;font-size:14px}
+  #mock-log{position:fixed;left:8px;bottom:8px;max-width:360px;max-height:170px;overflow:auto;background:rgba(0,0,0,.72);color:#9fe8c7;font:10px/1.5 ui-monospace,monospace;padding:8px 10px;border-radius:8px;z-index:50;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <h2>ChatGPT 模拟侧边栏（前 30 条）</h2>
+  <ol id="history"></ol>
+</nav>
+<main>（模拟 ChatGPT 页面主体）</main>
+<pre id="mock-log">mock API log:
+</pre>
+<script>
+(function () {
+  // ---- 假数据：143 条会话，覆盖分页、超长标题、各种时间 ----
+  var NOW = Date.now();
+  var H = 3600e3, D = 24 * H;
+  var seedTitles = [
+    '帮我写一份周报', 'Python 异步爬虫报错排查', '翻译一段英文合同条款',
+    '2026 年个人所得税计算方法', '一个很长的标题用于测试省略号显示效果到底会不会正常换行或者溢出',
+    'React useEffect 闭包问题', '晚餐推荐：低卡高蛋白', '推导贝叶斯公式的直观理解',
+    '润色英文求职信', 'macOS 快捷键整理', 'SQL 窗口函数练习', '给猫起名字',
+    'K8s pod 重启原因分析', '论文 abstract 修改', '面试常见系统设计题',
+  ];
+  var DB = [];
+  for (var i = 0; i < 143; i++) {
+    DB.push({
+      id: 'uuid-' + String(i).padStart(4, '0') + '-aaaa-bbbb-cccc-dddddddddddd',
+      title: seedTitles[i % seedTitles.length] + (i >= seedTitles.length ? ' #' + i : ''),
+      update_time: new Date(NOW - (i * 1.7 * H + (i % 7) * 11 * 60e3) - (i > 60 ? (i - 60) * D : 0)).toISOString().replace('Z', '+00:00'),
+    });
+  }
+
+  // 侧边栏 DOM 只渲染前 30 条：模拟“API 有全量、侧边栏只显示部分”
+  var ol = document.getElementById('history');
+  DB.slice(0, 30).forEach(function (c) {
+    var li = document.createElement('li');
+    li.innerHTML = '<a class="__menu-item" href="/c/' + c.id + '"><span class="truncate"><span>' + c.title + '</span></span></a>';
+    ol.appendChild(li);
+  });
+
+  // ---- mock 掉所有内部接口（在 content.js 之前安装）----
+  var logEl = document.getElementById('mock-log');
+  function log(line) { logEl.textContent += line + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+  function json(obj, status) {
+    return new Promise(function (r) {
+      setTimeout(function () {
+        r(new Response(JSON.stringify(obj), { status: status || 200, headers: { 'Content-Type': 'application/json' } }));
+      }, 120 + Math.random() * 180);
+    });
+  }
+  function status(s) {
+    return new Promise(function (r) {
+      setTimeout(function () { r(new Response('', { status: s })); }, 60 + Math.random() * 120);
+    });
+  }
+
+  window.fetch = async function (url, opts) {
+    opts = opts || {};
+    var u = String(url);
+    log((opts.method || 'GET') + ' ' + u + (opts.body ? ' ' + String(opts.body).slice(0, 90) : ''));
+    if (u === '/api/auth/session') return json({ accessToken: 'mock-token-abc' });
+    if (u.indexOf('/backend-api/conversations?') === 0) {
+      var q = new URLSearchParams(u.slice(u.indexOf('?') + 1));
+      var off = parseInt(q.get('offset') || '0', 10), lim = parseInt(q.get('limit') || '28', 10);
+      return json({ items: DB.slice(off, off + lim), total: DB.length, has_more: off + lim < DB.length, limit: lim, offset: off });
+    }
+    if (u === '/backend-api/conversations/delete') return status(404); // 模拟批量删除接口不可用
+    var m = u.match(/^\/backend-api\/conversation\/([^/?]+)$/);
+    if (m) {
+      if ((opts.method || '') === 'DELETE') return status(404); // 模拟单条删除接口不可用
+      if ((opts.method || '') === 'PATCH') {                     // 兜底：隐藏接口可用
+        var idx = DB.findIndex(function (c) { return c.id === m[1]; });
+        if (idx >= 0) DB.splice(idx, 1);
+        return json({ success: true });
+      }
+    }
+    if (u === '/backend-api/conversation/delete') return status(404);
+    return status(404);
+  };
+})();
+</script>
+<script src="../content.js"></script>
+</body>
+</html>
