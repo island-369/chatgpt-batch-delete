@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 标题设置 · Clear Chats</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="mark" aria-hidden="true">✦</div>
+      <div><p class="eyebrow">CLEAR CHATS</p><h1>AI 标题设置</h1></div>
+    </header>
+    <section class="panel">
+      <p class="intro">配置兼容 OpenAI Chat Completions 的模型服务。可以使用云端服务，也可以填写本机 Ollama 等兼容地址。</p>
+      <label>服务地址<input id="endpoint" type="url" placeholder="https://api.example.com/v1/chat/completions" autocomplete="url"></label>
+      <label>模型名称<input id="model" type="text" placeholder="例如 gpt-4o-mini 或 qwen2.5:7b" autocomplete="off"></label>
+      <label>API Key <span class="optional">本地模型通常可留空</span><input id="api-key" type="password" placeholder="仅保存在此浏览器的扩展存储中" autocomplete="new-password"></label>
+      <p class="privacy">你点击生成并在确认框继续后，扩展只发送所选会话最近最多 8 条消息到这里配置的服务。生成结果会先供你检查；再次确认后才会更新原标题。服务地址的访问权限会在保存时单独申请。</p>
+      <div class="actions"><button id="clear" class="secondary" type="button">清除配置</button><button id="save" class="primary" type="button">保存并授权地址</button></div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

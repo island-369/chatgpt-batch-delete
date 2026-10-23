@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test:unit && npm run test:chatgpt && npm run test:sites && npm run test:extension",
+    "test:unit": "node adapters-unit.cjs",
+    "test:chatgpt": "node shot.js",
+    "test:sites": "node multi-site.js",
+    "test:extension": "node extension-load.cjs"
   },
   "keywords": [],
   "author": "",

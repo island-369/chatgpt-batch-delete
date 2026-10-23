@@ -1,0 +1,4 @@
+/* 删除成功后隐藏对应侧边栏行（ChatGPT 直接移除节点，不依赖此样式）。 */
+.cgpt-bd-deleted {
+  display: none !important;
+}

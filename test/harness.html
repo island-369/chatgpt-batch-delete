@@ -79,6 +79,15 @@
       var off = parseInt(q.get('offset') || '0', 10), lim = parseInt(q.get('limit') || '28', 10);
       return json({ items: DB.slice(off, off + lim), total: DB.length, has_more: off + lim < DB.length, limit: lim, offset: off });
     }
+    if (u === '/backend-api/files/library' && (opts.method || 'GET') === 'POST') {
+      return json({ files: [
+        { library_file_id: 'lib-file-01', file_id: 'file-01', name: '产品路线图.png', mime_type: 'image/png', size_bytes: 1824000, created_at: new Date(NOW - 2 * H).toISOString() },
+        { library_file_id: 'lib-file-02', file_id: 'file-02', name: '访谈整理.md', mime_type: 'text/markdown', size_bytes: 12800, created_at: new Date(NOW - 1 * D).toISOString() },
+        { library_file_id: 'lib-file-03', file_id: 'file-03', name: '季度经营数据.xlsx', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', size_bytes: 48200, created_at: new Date(NOW - 4 * D).toISOString() },
+        { library_file_id: 'lib-file-04', file_id: 'file-04', name: '品牌视觉规范.pdf', mime_type: 'application/pdf', size_bytes: 240100, created_at: new Date(NOW - 8 * D).toISOString() },
+        { library_file_id: 'lib-file-05', file_id: 'file-05', name: '会议纪要.docx', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size_bytes: 66500, created_at: new Date(NOW - 14 * D).toISOString() },
+      ], has_more: false });
+    }
     if (u === '/backend-api/conversations/delete') return status(404); // 模拟批量删除接口不可用
     var m = u.match(/^\/backend-api\/conversation\/([^/?]+)$/);
     if (m) {
@@ -94,6 +103,17 @@
   };
 })();
 </script>
+<script src="../sites/shared.js"></script>
+<script src="../sites/chatgpt.js"></script>
+<script src="../sites/claude.js"></script>
+<script src="../sites/grok.js"></script>
+<script src="../sites/gemini.js"></script>
+<script src="../sites/kimi.js"></script>
+<script src="../sites/qwen.js"></script>
+<script src="../sites/deepseek.js"></script>
+<script src="../sites/chatglm.js"></script>
+<script src="../sites/yuanbao.js"></script>
+<script src="../sites/doubao.js"></script>
 <script src="../content.js"></script>
 </body>
 </html>

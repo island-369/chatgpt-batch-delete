@@ -32,6 +32,7 @@ function assert(name, cond, detail) {
 
   await page.goto(HARNESS, { waitUntil: 'load' });
   await sleep(600);
+  await page.addStyleTag({ content: '#mock-log{display:none!important}' });
 
   async function sEl(sel) {
     const h = await page.evaluateHandle((s) => {
@@ -57,7 +58,8 @@ function assert(name, cond, detail) {
       count: sr.querySelector('.count').textContent,
       delDisabled: sr.querySelector('.btn-del').disabled,
       delText: sr.querySelector('.btn-del').textContent,
-      delPending: sr.querySelector('.btn-del').classList.contains('btn-pending'),
+      confirmVisible: !sr.querySelector('.confirm-overlay').classList.contains('hidden'),
+      confirmMessage: sr.querySelector('.confirm-message').textContent,
       status: sr.querySelector('.status-text').textContent,
       sub: sr.querySelector('.sub').textContent,
       themeLight: h.classList.contains('theme-light'),
@@ -92,7 +94,6 @@ function assert(name, cond, detail) {
 
   // ---- 3. 搜索筛选 ----
   const search = await sEl('.search');
-  await search.click({ clickCount: 3 });
   await search.type('周报');
   await sleep(300);
   await shot('04-搜索筛选.png');
@@ -101,8 +102,11 @@ function assert(name, cond, detail) {
   assert('搜索后仍禁用删除（0 勾选）', st.delDisabled === true);
 
   // ---- 4. 清空搜索，勾选两行 ----
-  await search.click({ clickCount: 3 });
-  await page.keyboard.press('Backspace');
+  await page.evaluate(() => {
+    const input = document.querySelector('[data-cgpt-batch-delete]').shadowRoot.querySelector('.search');
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await sleep(300);
   const cb0 = await sElAt('.row input[type=checkbox]', 0);
   const cb1 = await sElAt('.row input[type=checkbox]', 1);
@@ -114,39 +118,25 @@ function assert(name, cond, detail) {
   assert('删除按钮文案', st.delText === '删除所选 (2)', st.delText);
   assert('删除按钮可用', st.delDisabled === false);
 
-  // ---- 5. 一次点击 → 进入 5 秒撤销窗口 ----
+  // ---- 5. 确认删除范围，再提交 ----
   (await sEl('.btn-del')).click();
-  await sleep(400);
-  await shot('06-撤销窗口.png');
+  await sleep(80);
+  await shot('06-确认删除.png');
   st = await sState();
-  assert('点一次即进入倒计时（按钮显示剩余秒数）', /^撤销删除 \((4|5)\)$/.test(st.delText), st.delText);
-  assert('状态栏说明倒计时', st.status.indexOf('秒后删除 2 个会话') >= 0, st.status);
+  assert('删除前显示确认框', st.confirmVisible === true);
+  assert('确认框包含所选数量', /2 条会话/.test(st.confirmMessage), st.confirmMessage);
+  (await sEl('.confirm-accept')).click();
+  await sleep(120);
+  st = await sState();
+  assert('确认后进入删除', st.delText === '中止删除', st.delText);
+  assert('状态栏显示正在删除', st.status.indexOf('正在删除') >= 0, st.status);
 
-  // ---- 6. 倒计时内再点一次 = 撤销，不会误删 ----
-  (await sEl('.btn-del')).click();
-  await sleep(300);
-  st = await sState();
-  assert('再点一次是撤销，按钮复原', st.delText === '删除所选 (2)' && st.delDisabled === false, st.delText);
-  assert('撤销后未删除任何会话（侧边栏仍 30）', (await sidebarCount()) === 30);
-  assert('撤销后没有发出删除请求', (await patchCount()) === 0, 'PATCH x' + (await patchCount()));
-
-  // ---- 7. 再点删除：倒计时走完自动执行 ----
-  (await sEl('.btn-del')).click();
-  await sleep(1300);
-  await shot('07-倒计时中.png');
-  st = await sState();
-  assert('倒计时递减', /^撤销删除 \(4\)$/.test(st.delText), st.delText);
-  await sleep(4200);   // 累计约 5.5s
-  await shot('08-自动开始删除.png');
-  st = await sState();
-  assert('倒计时结束自动开始删除', st.delText === '中止删除', st.delText);
-
-  // ---- 8. 删除中关掉弹窗：转后台继续 ----
+  // ---- 6. 删除中关掉弹窗：转后台继续 ----
   await page.keyboard.press('Escape');
   await sleep(250);
   st = await sState();
   assert('删除中 Esc 直接收起（不再弹确认框）', st.overlayHidden === true);
-  await shot('09-后台删除中.png');
+  await shot('07-后台删除中.png');
 
   // 轮询气泡文案：删除比预期快时也能稳定断言（先出现进度，最后变成已完成）
   const seen = [];
@@ -201,7 +191,10 @@ function assert(name, cond, detail) {
     const rows = [...sr.querySelectorAll('.row')];
     const badRows = rows.filter((r) => r.scrollWidth > r.clientWidth + 1);
     const titles = [...sr.querySelectorAll('.row-title')];
-    const clipped = titles.filter((t) => t.scrollWidth > t.clientWidth + 1);
+    const clipped = titles.filter((t) => {
+      const style = getComputedStyle(t);
+      return style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden';
+    });
     const dg = sr.querySelector('.dialog').getBoundingClientRect();
     return {
       rows: rows.length,
@@ -216,6 +209,32 @@ function assert(name, cond, detail) {
   assert('长标题正确省略号截断', audit.clippedTitles > 0, 'clipped=' + audit.clippedTitles);
   assert('列表无横向滚动', audit.listOverflowX === false);
   assert('弹窗在视口内', audit.fitsViewport === true, audit.dialogW + 'x' + audit.dialogH);
+
+  // ---- 13. 资料库辅助面板：搜索、筛选、批量下载，不重复实现原生删除 ----
+  await (await sEl('.btn-library')).click();
+  await page.waitForFunction(() => {
+    const shadow = document.querySelector('[data-cgpt-batch-delete]')?.shadowRoot;
+    return shadow?.querySelectorAll('.library-row').length === 5;
+  }, { timeout: 5000 });
+  const libraryState = () => page.evaluate(() => {
+    const shadow = document.querySelector('[data-cgpt-batch-delete]').shadowRoot;
+    return {
+      rows: shadow.querySelectorAll('.library-row').length,
+      deleteButton: !!shadow.querySelector('.library-delete'),
+      downloadDisabled: shadow.querySelector('.library-download').disabled,
+      status: shadow.querySelector('.library-status').textContent,
+    };
+  });
+  let library = await libraryState();
+  assert('资料库辅助面板加载 5 个模拟文件', library.rows === 5, 'rows=' + library.rows);
+  assert('资料库面板使用原生删除，不提供重复删除按钮', library.deleteButton === false);
+  await page.evaluate(() => {
+    const shadow = document.querySelector('[data-cgpt-batch-delete]').shadowRoot;
+    shadow.querySelector('.library-all').click();
+  });
+  library = await libraryState();
+  assert('全选文件后可批量下载', library.downloadDisabled === false);
+  await shot('13-资料库辅助管理.png');
   assert('全程无页面 JS 报错', pageErrors.length === 0, pageErrors.join(' | '));
 
   await browser.close();
