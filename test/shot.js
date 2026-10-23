@@ -33,6 +33,12 @@ function assert(name, cond, detail) {
   await page.goto(HARNESS, { waitUntil: 'load' });
   await sleep(600);
   await page.addStyleTag({ content: '#mock-log{display:none!important}' });
+  await page.evaluate(() => {
+    const host = document.querySelector('[data-cgpt-batch-delete]');
+    const style = document.createElement('style');
+    style.textContent = ':host{--overlay:rgba(255,255,255,.28)!important}.confirm-overlay{background:rgba(255,255,255,.24)!important}';
+    host.shadowRoot.appendChild(style);
+  });
 
   async function sEl(sel) {
     const h = await page.evaluateHandle((s) => {
